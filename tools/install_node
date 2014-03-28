@@ -1,0 +1,35 @@
+#! /bin/bash
+
+if [ "$1" == "--all_in_one" ]; then
+    all_in_one_install
+elif [ "$1" == "--control_node" ]; then
+    control_install
+elif [ "$1" == "--compute_node" ]; then
+    compute_install
+elif [ "$1" == "--all_in_one_single_storage" ]; then
+    all_in_one_single_storage_install
+elif [ "$1" == "--all_in_one_multi_storage" ]; then
+    all_in_one_multi_storage_install
+elif [ "$1" == "--control_node_single_storage" ]; then
+    control_node_single_storage_install
+elif [ "$1" == "--control_node_multi_storage" ]; then
+    control_node_multi_storage_install
+elif [ "$1" == "--single_storage" ]; then
+    single_storage_install
+elif [ "$1" == "--multi_storage" ]; then
+    multi_storage_install
+else
+    echo "Install node"
+    echo "Usage: ./install_node <options>"
+    echo "Options:"
+    echo "    --all_in_one	Install all_in_one node."
+    echo "    --control_node	Install control node."
+    echo "    --compute_node	Install compute node."
+    echo "    --all_in_one_single_storage	Install all in one single storage node."
+    echo "    --all_in_one_multi_storage	Install all in one multi storage node."
+    echo "    --control_node_single_storage Install control node single storage."
+    echo "    --control_node_multi_storage  Install control node multi storage."
+    echo "    --single_storage  Install single storage node"
+    echo "    --multi_storage   Install multi storage node"
+    echo "    --help or -h	Display help about install_node."
+fi

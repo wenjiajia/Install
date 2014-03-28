@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+
+# Author: Lawrency Meng
+# Date: 2013-2-28
+# Description:
+#       a show the disk usages
+#       b show the all disks usages
+
+
+# args conts
+DISK=""
+WARNING=""
+CRITICAL=""
+OUTPUT=""
+OUTPUTRES=""
+PERFRES=""
+
+# state err conts
+E_OK=0
+E_WARNING=1
+E_CRITICAL=2
+E_UNKNOWN=3
+
+# state info conts
+GB=$((1024*1024))
+TMPFILE="/tmp/resulttmp"
+
+# service conts
+PLUGIN=
+SERVICE=`echo ${0#*_} | tr a-z A-Z`
+
+function checkWarnCitri(){
+
+    # check
+    if [ "$1" -gt "$WARNING" ]; then
+        if [ $1 -gt $CRITICAL ]; then
+            OUTPUT="CRITICAL"
+            EXITCODE=$E_CRITICAL
+        else
+            OUTPUT="WARNING "
+            EXITCODE=$E_WARNING
+        fi
+    else
+        OUTPUT="OK"
+    fi
+}
+
+# param: $1 disk $2 USED $3 FREE $4 TOTAL $5 USAGE
+function output(){
+    OUTPUTTEMP="$SERVICE $OUTPUT - $1 used:$2,free:$3,total:$4,usage:$5"
+    PERFTEMP="'used'=${2};$WARNING;$CRITICAL;; 'free'=${3};$WARNING;$CRITICAL;; 'total'=${4};$WARING;$CRITICAL;; 'usage'=${5};$WARNING;$CRITICAL;; "
+    if [ -z "$6" ]; then
+        OUTPUTRES=$OUTPUTTEMP
+        PERFRES=$PERFTEMP
+    else
+        OUTPUTRES="$OUTPUTRES # $OUTPUTTEMP"
+        PERFRES="$PERFRES # $PERFTEMP"
+    fi
+}
+
+function calTotal(){
+    TOTALGB=`sudo parted /dev/$1 print  | grep /dev/$1 | awk '{print $3}'`
+    TOTALKB=`echo "${TOTALGB/GB/*$GB}" | bc`
+    echo `printf "%.0f" $TOTALKB`
+}
+# output the unmount disk
+# param: $1 disk
+# return: output
+function opUnmount(){
+    TOTAL=`calTotal $1`
+    USED=0
+    FREE=${TOTAL}
+    USAGE=0
+    checkWarnCitri $USAGE
+
+    output $1 $USED $FREE $TOTAL $USAGE $OUTPUTRES
+
+}
+
+# output the mount disk
+# param: $1 disk
+# return: output
+function opMount(){
+
+    `df | grep /dev/ > /tmp/resulttmp`
+    TOTAL=`calTotal $1`
+    USED=`awk '/'"$1"'/ {sum += $3};END {print sum}' $TMPFILE`
+    FREE=`echo "${TOTAL}-$USED" | bc`
+
+    USAGETMP=`echo "scale=4;$USED/$TOTAL" | bc`
+    USAGEPER=`printf "%.2f" $USAGETMP`
+    USAGE=`echo $USAGEPER*100 | bc`
+    checkWarnCitri ${USAGE%%.*}
+
+    output $1 $USED $FREE $TOTAL ${USAGE%%.*} $OUTPUTRES
+}
+
+# check disk mount/unmount
+# param: $1 disk
+function checkMount(){
+    if [ `mount | grep /dev/$disk | wc -l` -eq 0 ]; then
+        opUnmount $disk
+    else
+        opMount $disk
+    fi
+}
+
+# check disk fstype
+function checkFstype(){
+    fstype=`blkid -o list | grep /dev/$1 | awk '{print $2}'`
+    if [ "$fstype" == 'LVM2_member' ]; then
+        echo "1"
+    else
+        echo "0"
+    fi
+}
+
+# check the input args
+function sanitize() {
+
+    # 01 check thresholds
+    if [ -z "$WARNING" ]; then
+        echo "Need warning threshold"
+        exit $E_UNKNOWN
+    fi
+    if [ -z "$CRITICAL" ]; then
+        echo "Need critical threshold"
+        exit $E_UNKNOWN
+    fi
+}
+
+# show the help info
+function show_help() {
+    echo "$0 -d DEVICE -w WARN -c CRIT | -h"
+    echo
+    echo "This plug-in is used to be alerted when maximum hard drive usage is reached"
+    echo
+    echo "  -d DEVICE             DEVICE must be without /dev (ex: -sda)(default all disk devs)"
+    echo "  -w/c WARN/CRIT        WARN and CRIT alert limit(1/10000)"
+    echo
+    echo " example: $0 [-d sda] -w 9000 -c 9500"
+}
+
+function main(){
+    # process args
+    [ $# = 0 ] && show_help && exit 1
+    while [ ! -z "$1" ]; do
+        case $1 in
+            -d)     shift; DISK=$1 ;;
+            -w)     shift; WARNING=$1 ;;
+            -c)     shift; CRITICAL=$1 ;;
+            -h)     show_help; exit 1 ;;
+        esac
+        shift
+    done
+
+    sanitize
+
+    # default: output all disk usage info
+    # -d sda: only output sda usage info
+    for disk in `ls /dev/ | grep [a-z]d[a-z]$`; do
+        if [ "`checkFstype $disk`" == 1 ]; then
+            continue
+        fi
+        if [ -z "$DISK" ]; then
+            checkMount $disk
+        else
+            if [ $DISK = $disk ]; then
+                checkMount $disk
+                break
+            else
+                continue
+            fi
+        fi
+    done
+    echo "$OUTPUTRES | $PERFRES"
+    exit $E_OK
+}
+
+main $@

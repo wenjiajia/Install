@@ -1,0 +1,9 @@
+build-essential
+make
+gcc
+xinetd
+libssl-dev
+ethtool
+libmysqld-dev
+mailutils
+expect

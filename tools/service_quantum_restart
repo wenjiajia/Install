@@ -1,0 +1,8 @@
+service quantum-server restart
+service quantum-l3-agent restart
+service quantum-dhcp-agent restart
+service quantum-metadata-agent restart
+service quantum-plugin-openvswitch-agent restart
+service dnsmasq restart
+service apache2 restart
+service memcached restart
